@@ -21,7 +21,7 @@ class rpg(commands.Cog):
         return Category, Guild, ID
         
 
-    @commands.command(pass_context=True, aliases=["dice", "r", "roll"])
+    @commands.command(aliases=["dice", "r", "roll"])
     async def d(self, ctx, input: str):
 
         """
@@ -145,11 +145,6 @@ class rpg(commands.Cog):
     async def init(self, ctx):
         """
         The init command keeps track of initiative within a channel category. In order to use this with multiple games simultaneously, you will need to separate the games into different text channel categories.
-        
-        In order to add combatants, use .init add.
-        To remove a combatant, use .init remove.
-        To end combat/clear the initiative table, use .init endcombat
-        To show initiative order, use .init.
         """
         if ctx.invoked_subcommand is None:
             Category, Guild, ID = self.ctx_info(ctx)
@@ -163,13 +158,11 @@ class rpg(commands.Cog):
             try:
                 mentionMe = initraw[0].get("ID")
             except:
-                await ctx.send(
-                    "Before requesting an initiative table, make sure initiative has been added."
-                )
+                pass
 
             output = ""
             for i in initraw:
-                del i["ID"]
+                del i["ID"], i["_id"]
                 outstring = f"{list(i.values())[0]} : {list(i.values())[1]}"
                 output += outstring + "\n"
             embed = discord.Embed(
@@ -185,37 +178,35 @@ class rpg(commands.Cog):
                 )
             if mentionMe != None:
                 await ctx.send(f"Hey, <@{mentionMe}>, you're up.")
-
-    @init.command(pass_context=True)
-    async def add(self, ctx, name, dieRoll):
+                
+    @init.command(aliases=['add'])
+    async def new(self, ctx, name, dieRoll):
         """
         Add a Combatant to the initiative table.
-
-        Syntax:
-        .init add [name] [dice]
         """
         Category, Guild, ID = self.ctx_info(ctx)
-        if dieRoll.find("d") == True:
+        print(dieRoll)
+        if dieRoll.find('d') == True:
             outcome = await rpg.d(self, ctx, dieRoll)
         else:
             outcome = int(dieRoll)
         try:
-            ID = ctx.message.mentions[0].id
+            ID = ctx.message.mentions[0].id 
         except:
             ID = ctx.message.author.id
         await ctx.send(f"{name} has been added to the initiative counter.")
-        self.lt_db.init_add(Guild, Category, name, ID, outcome)
+        self.lt_db.init_add(Guild,Category, name, ID, outcome)
 
-    @init.command(pass_context=True)
-    async def remove(self, ctx, Name):
+    @init.command(pass_context=True, aliases=['remove'])
+    async def kill(self, ctx, name):
         """
-        Removes a single combatant from the Initiative Tracker.
+        Remove a combant from the initiative tracker.
         """
         Category, Guild, ID = self.ctx_info(ctx)
-        self.lt_db.init_remove(Guild, Category, Name)
-        await ctx.send(f"{Name} has been removed from the initiative count.")
-
-    @init.command(pass_context=True)
+        self.lt_db.init_remove(Guild, Category, name)
+        await ctx.send(f"{name} has been removed from the initiative count.")
+    
+    @init.command()
     async def endcombat(self, ctx):
         """
         Clears the initiative table altogether. This cannot be undone.
@@ -232,52 +223,79 @@ class rpg(commands.Cog):
                 "It doesn't look like you're the DM here, so you probably don't need to worry about this one."
             )
 
-    @init.command(pass_context=True, aliases=["pass", "start"])
+    @init.command(aliases=["pass", "start"])
     async def next(self, ctx):
+        """
+        Moves the initiative count to the next combatant.
+        """
+
         Category, Guild, ID = self.ctx_info(ctx)
-        current = self.lt_db.current_init(Guild, Category)
-        # print(current)
-        print(ID)
+        initraw = self.lt_db.init_get(Guild, Category)
+        turnNum = self.lt_db.turn_get(Guild, Category)
+        current = initraw[turnNum-1]["ID"]
+        
         dmCheck = self.lt_db.owner_check(Guild, Category, ID)
         if int(ID) == int(current) or dmCheck == True:
             self.lt_db.turn_next(Guild, Category)
-            print("I'm working")
+            await self.init(ctx)
+        else:
+            await ctx.send("I don't think it's your turn yet!")
+        
+
+    @init.command()
+    async def delay(self, ctx, newInit):
+        """
+        Moves an existing combatant to a new initiative total.
+        """
+        Category, Guild, ID = self.ctx_info(ctx)
+        initraw = self.lt_db.init_get(Guild, Category)
+        turnNum = self.lt_db.turn_get(Guild, Category)
+        current = initraw[turnNum-1]["ID"]
+        Name = initraw[turnNum-1]['Name']
+        dmCheck = self.lt_db.owner_check(Guild, Category, ID)
+        if int(ID) == int(current) or dmCheck == True:
+            self.lt_db.init_delay(Guild, Category, Name,newInit)
+            
         else:
             await ctx.send("I don't think it's your turn yet!")
         await self.init(ctx)
 
-    @commands.group(pass_context=True)
+
+
+    @commands.group()
     async def dm(self, ctx):
         """
         Select a subcommand to use with this command.
         """
 
-    @dm.command(pass_context=True)
-    async def register(self, ctx):
+    @dm.command(aliases= ["register"])
+    async def add(self, ctx):
         """
         Register the user as a Dungeon Master within the current channel category.
-        """
+                """
         Category, Guild, ID = self.ctx_info(ctx)
         output = self.lt_db.add_owner(Guild, Category, ID)
         await ctx.send(output)
 
-    @dm.command(pass_context=True)
-    async def unregister(self, ctx):
+    
+    @dm.command(aliases= ["unregister"])
+    async def remove(self, ctx):
         """
-        Unregister current DM for Category. Only usable by 
+        Unregister current DM for Category. Only usable by DM or administrator.
         """
         Category, Guild, ID = self.ctx_info(ctx)
         override = ctx.message.author.permissions_in(ctx.channel).administrator
         output = self.lt_db.remove_owner(Guild, Category, ID, override)
         await ctx.send(output)
 
-    @commands.group(pass_context=True)
+    
+    @commands.group()
     async def char(self, ctx):
         """
         todo: update docstring with useful things.
         """
 
-    @char.command(pass_context=True)
+    @char.command(aliases=['add'])
     async def register(self, ctx, Name):
         """
         Register a user's character.
@@ -292,7 +310,7 @@ class rpg(commands.Cog):
         output = self.lt_db.add_char(Guild, Category, ID, Name)
         await ctx.send(output)
         
-    @char.command(pass_context=True)
+    @char.command(aliases=['remove'])
     async def unregister(self, ctx, Name):
         """
         Unregister a user's character.

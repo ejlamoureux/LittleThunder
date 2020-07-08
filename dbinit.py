@@ -1,5 +1,5 @@
 import json
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 import configparser
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -34,7 +34,7 @@ class lt_db(object):
             print(f"An error occured connecting to the database.{ex}")
 
     def db_init(self):
-        self.db = self.client.dbname
+        self.db = self.client.brertdtw29riga7
         return True
 
     def register_number(self, Name, ID, phoneNumber):
@@ -118,10 +118,7 @@ class lt_db(object):
         initList = self.db[str(Guild)][str(Category)]
         output = list(initList.find({}))
         output.sort(key=init_order, reverse=True)
-        for i in output:
-
-            del i["_id"]
-
+        
         return output
 
     def turn_next(self, Guild, Category):
@@ -148,13 +145,26 @@ class lt_db(object):
             turnCheck = self.db[str(Guild)].find_one({"Category": Category})
             return turnCheck["turn"]
 
-    def current_init(self, Guild, Category):
+    def init_delay(self, Guild, Category, Name, newInit):
 
-        turnCheck = self.db[str(Guild)].find_one({"Category": Category})["turn"]
-        initList = list(self.db[str(Guild)][str(Category)].find({}))
-        initList.sort(key=init_order, reverse=True)
+        current = self.db[str(Guild)].find_one(
+            {"Category": Category}
+        )
+        turn = self.db[str(Guild)].find_one({"Category": Category})["turn"]
+        oldInit = self.db[str(Guild)][str(Category)].find_one({"Name":Name})['Init']
+        currentInit = self.db[str(Guild)][str(Category)].find_one_and_update({"Name":Name}, {'$set': {'Init':int(newInit)}}, return_document= ReturnDocument.AFTER)['Init']
+        initraw = self.db[str(Guild)][str(Category)].find({})
+        nextInit = initraw.sort("Init", -1)[turn-1]['Init']
 
-        return initList[turnCheck - 1]["ID"]
+        entries = self.db[str(Guild)][str(Category)].count_documents({})
+
+        if current["turn"] >= entries:
+            self.db[str(Guild)].find_one_and_update(
+                {"Category": Category}, {"$inc": {"turn": -entries}}
+            )
+
+        if currentInit > nextInit or oldInit < currentInit:
+            self.db[str(Guild)].update_one({'Category': Category}, {'$inc': {'turn':1}})
 
     def add_owner(self, Guild, Category, ID):
         existCheck = self.db[str(Guild)].find_one({"Category": Category})

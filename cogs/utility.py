@@ -1,13 +1,13 @@
 import discord
 from discord.ext import commands
+from discord.ext.commands import has_permissions
 
 
 class utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-
-    @commands.has_permissions(manage_messages=True)
     @commands.command(pass_context=True, no_pm=True, aliases=["clear", "p"])
+    @has_permissions(administrator = True, manage_messages=True)
     async def purge(self, ctx, number: int, members="everyone", *, txt=None):
         """
     Purge last n messages. Requires Manage Messages permission. 
@@ -21,6 +21,9 @@ class utility(commands.Cog):
     ..purge 20 @CaydenCailean - Remove any messages in the last 20 that were written by @CaydenCailean
     ..purge 20 everyone foo - Remove any messages in the last 20 which contain the keyword "foo".
         """
+
+    
+        
         await ctx.channel.purge(limit=1)
         member_object_list = []
         if members != "everyone":
