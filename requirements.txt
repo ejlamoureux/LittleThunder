@@ -16,7 +16,7 @@ lazy-object-proxy==1.4.3
 lxml==4.5.0
 mccabe==0.6.1
 multidict==4.7.5
-PyJWT==1.7.1
+PyJWT==2.4.0
 pylint==2.4.4
 pymongo==3.10.1
 pyparsing==2.4.7
